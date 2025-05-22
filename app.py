@@ -131,10 +131,51 @@ st.markdown("""
     .progress-good { background-color: #2ecc71; }
     .progress-warning { background-color: #f39c12; }
     .progress-bad { background-color: #e74c3c; }
+    
+    /* Estilos específicos para ganadería */
+    .ganaderia-card {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
+    .animal-category {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .animal-category:last-child {
+        border-bottom: none;
+    }
+    
+    .animal-name {
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .animal-count {
+        font-weight: 700;
+        color: #6f5499;
+        font-size: 18px;
+    }
+    
+    .section-title {
+        color: #4478a7;
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #4478a7;
+        padding-bottom: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Datos de ejemplo
+# Datos de ejemplo expandidos con ganadería
 @st.cache_data
 def load_data():
     productores_data = [
@@ -149,15 +190,19 @@ def load_data():
         "30-12345678-9": {
             "cuit": "30-12345678-9",
             "razonSocial": "Agrícola Los Robles S.A.",
-            "superficieTotal": 2500,
-            "superficieAgricola": 2000,
-            "porcentajeAgricola": 80,
+            "superficieTotal": 10500,  # Ahora incluye superficie ganadera
+            "superficieAgricola": 5300,  # 800 propias + 4500 arrendadas
+            "superficieGanadera": 5200,  # Según Excel
+            "porcentajeAgricola": 50.5,
+            "porcentajeGanadero": 49.5,
             "departamento": "San Justo",
             "provincia": "Santa Fe",
             "poligonos": [
                 {"id": "P001", "tipo": "Agrícola", "superficie": 1200},
                 {"id": "P002", "tipo": "Agrícola", "superficie": 800},
-                {"id": "P003", "tipo": "No Agrícola", "superficie": 500}
+                {"id": "P003", "tipo": "Ganadero", "superficie": 2500},
+                {"id": "P004", "tipo": "Ganadero", "superficie": 2700},
+                {"id": "P005", "tipo": "No Productivo", "superficie": 300}
             ],
             "rotacionCultivos": [
                 {"campania": "19-20", "soja": 45, "maiz": 30, "girasol": 10, "maiz2da": 5, "noAgricola": 10},
@@ -177,6 +222,75 @@ def load_data():
                     {"cultivo": "Soja", "rendimiento5": 3500, "rendimiento10": 3200},
                     {"cultivo": "Girasol", "rendimiento5": 2000, "rendimiento10": 1800}
                 ]
+            },
+            # DATOS GANADEROS basados en el Excel
+            "ganaderia": {
+                "stockTotal": {
+                    "Vaca": 10000,
+                    "Vaquillonas": 5000,
+                    "Novillo": 3000,
+                    "Novillito": 3000,
+                    "Ternero": 5000,
+                    "Ternera": 5000,
+                    "Toro": 6000,
+                    "Torito/MEJ": 5000,
+                    "total": 42000
+                },
+                "stockCria": {
+                    "Vaca": 5000,
+                    "Vaquillonas": 1000,
+                    "Novillo": 0,
+                    "Novillito": 0,
+                    "Ternero": 1500,
+                    "Ternera": 1500,
+                    "Toro": 200,
+                    "Torito/MEJ": 0,
+                    "total": 9200
+                },
+                "stockEngorde": {
+                    "Vaca": 5000,
+                    "Vaquillonas": 4000,
+                    "Novillo": 3000,
+                    "Novillito": 3000,
+                    "Ternero": 3500,
+                    "Ternera": 3500,
+                    "Toro": 5800,
+                    "Torito/MEJ": 5000,
+                    "total": 32800
+                },
+                "valorStock": {
+                    "stockBruto": 26604699.19,
+                    "stockNeto": 24210276.27,
+                    "mortandad": 0.02,
+                    "gastosComercializacion": 0.07
+                },
+                "parametrosCria": {
+                    "mortandadRodeo": 0.02,
+                    "destete": 0.60,
+                    "gastosComercializacion": 0.07,
+                    "torosEnRodeo": 0.04,
+                    "reposicion": 0.20,
+                    "proporcionTerneroTernera": 0.50,
+                    "hectareasGanaderas": 5200,
+                    "hectareasArrendadas": 5000,
+                    "cabezasPorPeon": 400
+                },
+                "finanzasCria": {
+                    "ingresosPorVentas": 1724345.97,
+                    "costoManoObra": 388723,
+                    "costoSanidad": 71100,
+                    "costoAlimentacion": 0,
+                    "costoArrendamiento": 710214.59,
+                    "costoReposicionToros": 58369.10,
+                    "gastosComercializacion": 120704.22,
+                    "margenAnual": 314882.96,
+                    "margenPorcentual": 18.26
+                },
+                "densidad": {
+                    "cabezasPorHectarea": 8.08,  # 42000 / 5200
+                    "eqVacaPorHectarea": 7.50,
+                    "cargaAnimal": "Alta"
+                }
             },
             "finanzas": {
                 "ingresosTotales": 875000,
@@ -248,6 +362,21 @@ def crear_gauge_simple(valor, maximo, titulo, subtitulo=""):
         </div>
         <div style="background-color: #e0e0e0; height: 8px; border-radius: 4px; margin: 10px 0; overflow: hidden;">
             <div style="background-color: {color}; height: 100%; width: {porcentaje}%; border-radius: 4px;"></div>
+        </div>
+    </div>
+    """
+
+def crear_categoria_animal(nombre, cantidad, total, icon="🐄"):
+    porcentaje = (cantidad / total) * 100 if total > 0 else 0
+    return f"""
+    <div class="animal-category">
+        <div style="display: flex; align-items: center;">
+            <span style="margin-right: 8px; font-size: 16px;">{icon}</span>
+            <span class="animal-name">{nombre}</span>
+        </div>
+        <div style="text-align: right;">
+            <div class="animal-count">{cantidad:,}</div>
+            <div style="font-size: 11px; color: #6c757d;">{porcentaje:.1f}%</div>
         </div>
     </div>
     """
@@ -328,8 +457,8 @@ if search_button or search_value:
         </h2>
         """, unsafe_allow_html=True)
         
-        # Métricas principales
-        col1, col2, col3, col4 = st.columns(4)
+        # Métricas principales expandidas
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             st.markdown(f"""
@@ -345,20 +474,29 @@ if search_button or search_value:
             <div class="metric-card">
                 <div class="metric-label">Superficie Agrícola</div>
                 <div class="metric-value">{productor_encontrado['superficieAgricola']:,}</div>
-                <div class="metric-subvalue">hectáreas</div>
+                <div class="metric-subvalue">{productor_encontrado['porcentajeAgricola']:.1f}% del total</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col3:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-label">Porcentaje Agrícola</div>
-                <div class="metric-value">{productor_encontrado['porcentajeAgricola']}%</div>
-                <div class="metric-subvalue">del total</div>
+                <div class="metric-label">Superficie Ganadera</div>
+                <div class="metric-value">{productor_encontrado['superficieGanadera']:,}</div>
+                <div class="metric-subvalue">{productor_encontrado['porcentajeGanadero']:.1f}% del total</div>
             </div>
             """, unsafe_allow_html=True)
         
         with col4:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="metric-label">Stock Ganadero</div>
+                <div class="metric-value">{productor_encontrado['ganaderia']['stockTotal']['total']:,}</div>
+                <div class="metric-subvalue">cabezas</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
             st.markdown(f"""
             <div class="metric-card">
                 <div class="metric-label">Ubicación</div>
@@ -367,98 +505,382 @@ if search_button or search_value:
             </div>
             """, unsafe_allow_html=True)
         
-        # Tabs principales
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-            "Información General", "Rendimientos", "Flujo de Caja", 
-            "Métricas de Crédito", "Simulador", "Comparativa de Mercado"
+        # Tabs principales - AGRICULTURA Y GANADERÍA
+        tab_agri, tab_gana, tab_finanzas, tab_credito, tab_simulador, tab_comparativa = st.tabs([
+            "🌾 Agricultura", "🐄 Ganadería", "💰 Finanzas", 
+            "🎯 Crédito", "🔄 Simulador", "📊 Comparativa"
         ])
         
-        # Tab 1: Información General
-        with tab1:
-            col1, col2 = st.columns([2, 1])
+        # TAB AGRICULTURA (código existente)
+        with tab_agri:
+            tab_info, tab_rend = st.tabs(["Información General", "Rendimientos"])
             
-            with col1:
-                st.subheader("Rotación de Cultivos (Campañas 2019-2024)")
+            with tab_info:
+                col1, col2 = st.columns([2, 1])
                 
-                # Preparar datos para gráfico
-                rotacion_df = pd.DataFrame(productor_encontrado['rotacionCultivos'])
-                rotacion_df = rotacion_df.set_index('campania')
-                
-                # Renombrar columnas para mejor presentación
-                rotacion_df.columns = [col.replace('maiz2da', 'Maíz 2da').replace('noAgricola', 'No Agrícola').title() for col in rotacion_df.columns]
-                
-                st.bar_chart(rotacion_df, height=400)
-                
-                st.info("📊 Gráfico de barras apiladas mostrando la evolución de cultivos por campaña")
-            
-            with col2:
-                st.subheader("Polígonos Productivos")
-                
-                # Mostrar información de polígonos en tabla
-                poligonos_df = pd.DataFrame([
-                    {
-                        'ID': p['id'],
-                        'Tipo': p['tipo'],
-                        'Superficie (ha)': f"{p['superficie']:,}"
-                    } for p in productor_encontrado['poligonos']
-                ])
-                st.dataframe(poligonos_df, hide_index=True, use_container_width=True)
-                
-                # Resumen de polígonos
-                total_agricola = sum(p['superficie'] for p in productor_encontrado['poligonos'] if p['tipo'] == 'Agrícola')
-                total_no_agricola = sum(p['superficie'] for p in productor_encontrado['poligonos'] if p['tipo'] == 'No Agrícola')
-                
-                st.metric("Total Agrícola", f"{total_agricola:,} ha")
-                st.metric("Total No Agrícola", f"{total_no_agricola:,} ha")
-        
-        # Tab 2: Rendimientos
-        with tab2:
-            st.subheader("Comparativa de Rendimientos")
-            
-            # Preparar datos de rendimientos
-            rendimientos_data = []
-            for rp in productor_encontrado['rendimientos']['propios']:
-                rd = next((r for r in productor_encontrado['rendimientos']['departamento'] 
-                         if r['cultivo'] == rp['cultivo']), None)
-                if rd:
-                    rendimientos_data.append({
-                        'Cultivo': rp['cultivo'],
-                        'Propio_5': rp['rendimiento5'],
-                        'Depto_5': rd['rendimiento5'],
-                        'Propio_10': rp['rendimiento10'],
-                        'Depto_10': rd['rendimiento10']
-                    })
-            
-            rendimientos_df = pd.DataFrame(rendimientos_data)
-            rendimientos_df = rendimientos_df.set_index('Cultivo')
-            
-            # Gráfico de barras comparativo
-            st.bar_chart(rendimientos_df, height=400)
-            
-            # Tabla detallada
-            st.subheader("Detalle de Rendimientos")
-            
-            tabla_rendimientos = []
-            for rp in productor_encontrado['rendimientos']['propios']:
-                rd = next((r for r in productor_encontrado['rendimientos']['departamento'] 
-                         if r['cultivo'] == rp['cultivo']), None)
-                if rd:
-                    dif_5 = rp['rendimiento5'] - rd['rendimiento5']
-                    pct_5 = (dif_5 / rd['rendimiento5']) * 100
+                with col1:
+                    st.subheader("Rotación de Cultivos (Campañas 2019-2024)")
                     
-                    tabla_rendimientos.append({
-                        'Cultivo': rp['cultivo'],
-                        'Propio 5 años': f"{rp['rendimiento5']:,}",
-                        'Departamento 5 años': f"{rd['rendimiento5']:,}",
-                        'Propio 10 años': f"{rp['rendimiento10']:,}",
-                        'Departamento 10 años': f"{rd['rendimiento10']:,}",
-                        'Diferencia 5 años': f"{dif_5:+,} ({pct_5:+.1f}%)"
-                    })
+                    # Preparar datos para gráfico
+                    rotacion_df = pd.DataFrame(productor_encontrado['rotacionCultivos'])
+                    rotacion_df = rotacion_df.set_index('campania')
+                    
+                    # Renombrar columnas para mejor presentación
+                    rotacion_df.columns = [col.replace('maiz2da', 'Maíz 2da').replace('noAgricola', 'No Agrícola').title() for col in rotacion_df.columns]
+                    
+                    st.bar_chart(rotacion_df, height=400)
+                    
+                    st.info("📊 Gráfico de barras apiladas mostrando la evolución de cultivos por campaña")
+                
+                with col2:
+                    st.subheader("Polígonos Agrícolas")
+                    
+                    # Filtrar solo polígonos agrícolas
+                    poligonos_agricolas = [p for p in productor_encontrado['poligonos'] if p['tipo'] == 'Agrícola']
+                    
+                    if poligonos_agricolas:
+                        poligonos_df = pd.DataFrame([
+                            {
+                                'ID': p['id'],
+                                'Superficie (ha)': f"{p['superficie']:,}"
+                            } for p in poligonos_agricolas
+                        ])
+                        st.dataframe(poligonos_df, hide_index=True, use_container_width=True)
+                        
+                        total_agricola = sum(p['superficie'] for p in poligonos_agricolas)
+                        st.metric("Total Agrícola", f"{total_agricola:,} ha")
+                    else:
+                        st.info("No hay polígonos agrícolas registrados")
             
-            st.dataframe(pd.DataFrame(tabla_rendimientos), hide_index=True, use_container_width=True)
+            with tab_rend:
+                st.subheader("Comparativa de Rendimientos")
+                
+                # Preparar datos de rendimientos
+                rendimientos_data = []
+                for rp in productor_encontrado['rendimientos']['propios']:
+                    rd = next((r for r in productor_encontrado['rendimientos']['departamento'] 
+                             if r['cultivo'] == rp['cultivo']), None)
+                    if rd:
+                        rendimientos_data.append({
+                            'Cultivo': rp['cultivo'],
+                            'Propio_5': rp['rendimiento5'],
+                            'Depto_5': rd['rendimiento5'],
+                            'Propio_10': rp['rendimiento10'],
+                            'Depto_10': rd['rendimiento10']
+                        })
+                
+                rendimientos_df = pd.DataFrame(rendimientos_data)
+                rendimientos_df = rendimientos_df.set_index('Cultivo')
+                
+                # Gráfico de barras comparativo
+                st.bar_chart(rendimientos_df, height=400)
+                
+                # Tabla detallada
+                st.subheader("Detalle de Rendimientos")
+                
+                tabla_rendimientos = []
+                for rp in productor_encontrado['rendimientos']['propios']:
+                    rd = next((r for r in productor_encontrado['rendimientos']['departamento'] 
+                             if r['cultivo'] == rp['cultivo']), None)
+                    if rd:
+                        dif_5 = rp['rendimiento5'] - rd['rendimiento5']
+                        pct_5 = (dif_5 / rd['rendimiento5']) * 100
+                        
+                        tabla_rendimientos.append({
+                            'Cultivo': rp['cultivo'],
+                            'Propio 5 años': f"{rp['rendimiento5']:,}",
+                            'Departamento 5 años': f"{rd['rendimiento5']:,}",
+                            'Propio 10 años': f"{rp['rendimiento10']:,}",
+                            'Departamento 10 años': f"{rd['rendimiento10']:,}",
+                            'Diferencia 5 años': f"{dif_5:+,} ({pct_5:+.1f}%)"
+                        })
+                
+                st.dataframe(pd.DataFrame(tabla_rendimientos), hide_index=True, use_container_width=True)
         
-        # Tab 3: Flujo de Caja
-        with tab3:
+        # TAB GANADERÍA (NUEVO)
+        with tab_gana:
+            ganaderia = productor_encontrado['ganaderia']
+            
+            tab_cria, tab_engorde, tab_general = st.tabs(["🐄 Cría", "🥩 Engorde", "📊 General"])
+            
+            with tab_cria:
+                st.markdown('<div class="section-title">📊 Stock de Cría</div>', unsafe_allow_html=True)
+                
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    # Stock de cría
+                    st.markdown('<div class="ganaderia-card">', unsafe_allow_html=True)
+                    
+                    icons = {
+                        "Vaca": "🐄", "Vaquillonas": "🐮", "Ternero": "🐄", 
+                        "Ternera": "🐄", "Toro": "🐂", "Torito/MEJ": "🐂"
+                    }
+                    
+                    total_cria = ganaderia['stockCria']['total']
+                    
+                    for categoria, cantidad in ganaderia['stockCria'].items():
+                        if categoria != 'total' and cantidad > 0:
+                            icon = icons.get(categoria, "🐄")
+                            st.markdown(crear_categoria_animal(categoria, cantidad, total_cria, icon), unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    # Métricas de cría
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Total Cría</div>
+                        <div class="metric-value">{total_cria:,}</div>
+                        <div class="metric-subvalue">cabezas</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Parámetros técnicos
+                    st.markdown('<div class="section-title">🔧 Parámetros Técnicos</div>', unsafe_allow_html=True)
+                    
+                    params = ganaderia['parametrosCria']
+                    
+                    col2_1, col2_2 = st.columns(2)
+                    
+                    with col2_1:
+                        st.metric("% Destete", f"{params['destete']:.0%}")
+                        st.metric("% Mortandad", f"{params['mortandadRodeo']:.1%}")
+                        st.metric("% Reposición", f"{params['reposicion']:.0%}")
+                    
+                    with col2_2:
+                        st.metric("Toros en Rodeo", f"{params['torosEnRodeo']:.1%}")
+                        st.metric("Cabezas/Peón", f"{params['cabezasPorPeon']:.0f}")
+                        st.metric("Ha Ganaderas", f"{params['hectareasGanaderas']:,}")
+                
+                # Análisis financiero de cría
+                st.markdown('<div class="section-title">💰 Análisis Financiero - Cría</div>', unsafe_allow_html=True)
+                
+                finanzas_cria = ganaderia['finanzasCria']
+                
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Ingresos por Ventas</div>
+                        <div class="metric-value">${finanzas_cria['ingresosPorVentas']:,.0f}</div>
+                        <div class="metric-subvalue">USD anuales</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Costos Totales</div>
+                        <div class="metric-value">${finanzas_cria['ingresosPorVentas'] - finanzas_cria['margenAnual']:,.0f}</div>
+                        <div class="metric-subvalue">USD anuales</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Margen Bruto</div>
+                        <div class="metric-value">${finanzas_cria['margenAnual']:,.0f}</div>
+                        <div class="metric-subvalue">USD anuales</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col4:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Margen %</div>
+                        <div class="metric-value">{finanzas_cria['margenPorcentual']:.1f}%</div>
+                        <div class="metric-subvalue">sobre ventas</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Desglose de costos
+                st.subheader("Desglose de Costos - Cría")
+                
+                costos_data = {
+                    'Concepto': ['Mano de Obra', 'Sanidad', 'Arrendamiento', 'Reposición Toros', 'Gastos Comercialización'],
+                    'Monto (USD)': [
+                        finanzas_cria['costoManoObra'],
+                        finanzas_cria['costoSanidad'],
+                        finanzas_cria['costoArrendamiento'],
+                        finanzas_cria['costoReposicionToros'],
+                        finanzas_cria['gastosComercializacion']
+                    ]
+                }
+                
+                costos_df = pd.DataFrame(costos_data)
+                costos_df = costos_df.set_index('Concepto')
+                st.bar_chart(costos_df, height=300)
+            
+            with tab_engorde:
+                st.markdown('<div class="section-title">🥩 Stock de Engorde</div>', unsafe_allow_html=True)
+                
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    # Stock de engorde
+                    st.markdown('<div class="ganaderia-card">', unsafe_allow_html=True)
+                    
+                    total_engorde = ganaderia['stockEngorde']['total']
+                    
+                    for categoria, cantidad in ganaderia['stockEngorde'].items():
+                        if categoria != 'total' and cantidad > 0:
+                            icon = icons.get(categoria, "🐄")
+                            st.markdown(crear_categoria_animal(categoria, cantidad, total_engorde, icon), unsafe_allow_html=True)
+                    
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Total Engorde</div>
+                        <div class="metric-value">{total_engorde:,}</div>
+                        <div class="metric-subvalue">cabezas</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    # Métricas de engorde
+                    st.markdown('<div class="section-title">📈 Métricas de Engorde</div>', unsafe_allow_html=True)
+                    
+                    # Calcular densidad para engorde
+                    densidad_engorde = total_engorde / ganaderia['parametrosCria']['hectareasGanaderas']
+                    
+                    st.metric("Densidad", f"{densidad_engorde:.1f} cab/ha")
+                    
+                    # Distribución por categoría para engorde
+                    principales_engorde = ['Novillo', 'Novillito', 'Vaquillonas']
+                    for cat in principales_engorde:
+                        if cat in ganaderia['stockEngorde']:
+                            cantidad = ganaderia['stockEngorde'][cat]
+                            porcentaje = (cantidad / total_engorde) * 100
+                            st.metric(f"{cat}", f"{cantidad:,} ({porcentaje:.1f}%)")
+                
+                # Análisis de capacidad de engorde
+                st.markdown('<div class="section-title">⚖️ Análisis de Capacidad</div>', unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    capacidad_optima = ganaderia['parametrosCria']['hectareasGanaderas'] * 1.5  # Ejemplo: 1.5 EV/ha
+                    utilizacion = (total_engorde / capacidad_optima) * 100
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Utilización de Capacidad</div>
+                        <div class="metric-value">{utilizacion:.0f}%</div>
+                        <div class="metric-subvalue">vs capacidad óptima</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    ganancia_peso_estimada = 0.8  # kg/día promedio
+                    kilos_anuales = total_engorde * ganancia_peso_estimada * 365
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Producción Estimada</div>
+                        <div class="metric-value">{kilos_anuales/1000:.0f}</div>
+                        <div class="metric-subvalue">ton/año de carne</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    rotacion_estimada = 1.5  # veces por año
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Rotación Anual</div>
+                        <div class="metric-value">{rotacion_estimada:.1f}</div>
+                        <div class="metric-subvalue">veces/año</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            with tab_general:
+                st.markdown('<div class="section-title">📊 Vista General del Rodeo</div>', unsafe_allow_html=True)
+                
+                # Comparación stock total vs cría vs engorde
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.subheader("Distribución del Stock Total")
+                    
+                    # Crear dataframe para el gráfico
+                    distribucion_data = pd.DataFrame({
+                        'Cría': [ganaderia['stockCria']['total']],
+                        'Engorde': [ganaderia['stockEngorde']['total']]
+                    })
+                    
+                    st.bar_chart(distribucion_data, height=300)
+                    
+                    # Porcentajes
+                    total_general = ganaderia['stockTotal']['total']
+                    pct_cria = (ganaderia['stockCria']['total'] / total_general) * 100
+                    pct_engorde = (ganaderia['stockEngorde']['total'] / total_general) * 100
+                    
+                    st.markdown(f"""
+                    **Distribución:**
+                    - Cría: {pct_cria:.1f}% ({ganaderia['stockCria']['total']:,} cabezas)
+                    - Engorde: {pct_engorde:.1f}% ({ganaderia['stockEngorde']['total']:,} cabezas)
+                    """)
+                
+                with col2:
+                    st.subheader("Valor del Stock Ganadero")
+                    
+                    valor_stock = ganaderia['valorStock']
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Valor Stock Bruto</div>
+                        <div class="metric-value">${valor_stock['stockBruto']:,.0f}</div>
+                        <div class="metric-subvalue">USD</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Valor Stock Neto</div>
+                        <div class="metric-value">${valor_stock['stockNeto']:,.0f}</div>
+                        <div class="metric-subvalue">Descontando mortandad y gastos</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Densidad general
+                    densidad_general = ganaderia['densidad']
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Carga Animal</div>
+                        <div class="metric-value">{densidad_general['cabezasPorHectarea']:.1f}</div>
+                        <div class="metric-subvalue">cab/ha - {densidad_general['cargaAnimal']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Tabla resumen por categorías
+                st.subheader("Resumen por Categorías")
+                
+                resumen_categorias = []
+                for categoria in ganaderia['stockTotal'].keys():
+                    if categoria != 'total':
+                        total = ganaderia['stockTotal'][categoria]
+                        cria = ganaderia['stockCria'].get(categoria, 0)
+                        engorde = ganaderia['stockEngorde'].get(categoria, 0)
+                        
+                        resumen_categorias.append({
+                            'Categoría': categoria,
+                            'Total': f"{total:,}",
+                            'Cría': f"{cria:,}",
+                            'Engorde': f"{engorde:,}",
+                            '% Cría': f"{(cria/total*100):.1f}%" if total > 0 else "0%",
+                            '% Engorde': f"{(engorde/total*100):.1f}%" if total > 0 else "0%"
+                        })
+                
+                resumen_df = pd.DataFrame(resumen_categorias)
+                st.dataframe(resumen_df, hide_index=True, use_container_width=True)
+        
+        # TAB FINANZAS (código existente adaptado)
+        with tab_finanzas:
             finanzas = productor_encontrado['finanzas']
             
             col1, col2 = st.columns(2)
@@ -523,8 +945,8 @@ if search_button or search_value:
             flujo_df = pd.DataFrame(flujo_data, columns=["Concepto", "Monto (USD)", "% del Total"])
             st.dataframe(flujo_df, hide_index=True, use_container_width=True)
         
-        # Tab 4: Métricas de Crédito
-        with tab4:
+        # Resto de tabs (Crédito, Simulador, Comparativa) - código existente
+        with tab_credito:
             credito = productor_encontrado['credito']
             
             st.subheader("Criterios de Aprobación de Crédito")
@@ -616,8 +1038,7 @@ if search_button or search_value:
                 </div>
                 """, unsafe_allow_html=True)
         
-        # Tab 5: Simulador
-        with tab5:
+        with tab_simulador:
             st.subheader("Simulador de Créditos")
             
             col1, col2 = st.columns([1, 1])
@@ -695,8 +1116,7 @@ if search_button or search_value:
                 else:
                     st.info("Complete los parámetros y haga clic en 'Simular Crédito' para ver los resultados")
         
-        # Tab 6: Comparativa de Mercado
-        with tab6:
+        with tab_comparativa:
             st.subheader("Posicionamiento en el Mercado")
             
             comparativa = productor_encontrado['comparativaMercado']
@@ -736,6 +1156,45 @@ if search_button or search_value:
             st.dataframe(pd.DataFrame(resumen_data), hide_index=True, use_container_width=True)
             
             st.success("🎯 **Recomendación Final:** Cliente PREMIUM - Aprobar crédito con condiciones preferenciales")
+            
+            # Análisis específico de ganadería
+            st.subheader("Análisis Ganadero Específico")
+            
+            ganaderia = productor_encontrado['ganaderia']
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                densidad = ganaderia['densidad']['cabezasPorHectarea']
+                if densidad > 1.0:
+                    clasificacion_densidad = "Alta densidad - Intensivo"
+                    color_densidad = "success"
+                elif densidad > 0.7:
+                    clasificacion_densidad = "Densidad media - Eficiente"
+                    color_densidad = "info"
+                else:
+                    clasificacion_densidad = "Baja densidad - Extensivo"
+                    color_densidad = "warning"
+                
+                if color_densidad == "success":
+                    st.success(f"🐄 **Carga Animal:** {densidad:.1f} cab/ha - {clasificacion_densidad}")
+                elif color_densidad == "info":
+                    st.info(f"🐄 **Carga Animal:** {densidad:.1f} cab/ha - {clasificacion_densidad}")
+                else:
+                    st.warning(f"🐄 **Carga Animal:** {densidad:.1f} cab/ha - {clasificacion_densidad}")
+            
+            with col2:
+                margen_cria = ganaderia['finanzasCria']['margenPorcentual']
+                if margen_cria > 15:
+                    st.success(f"💰 **Margen Cría:** {margen_cria:.1f}% - Excelente")
+                elif margen_cria > 10:
+                    st.info(f"💰 **Margen Cría:** {margen_cria:.1f}% - Bueno")
+                else:
+                    st.warning(f"💰 **Margen Cría:** {margen_cria:.1f}% - Mejorable")
+            
+            with col3:
+                valor_stock_por_ha = ganaderia['valorStock']['stockNeto'] / ganaderia['parametrosCria']['hectareasGanaderas']
+                st.info(f"📊 **Valor por Hectárea:** ${valor_stock_por_ha:,.0f}/ha")
 
 else:
     # Mostrar mensaje inicial
@@ -744,6 +1203,14 @@ else:
         <div style="font-size: 48px; margin-bottom: 15px;">🔍</div>
         <div style="font-size: 18px; margin-bottom: 5px;">Ingrese un CUIT o Razón Social para consultar</div>
         <div style="font-size: 14px;">La radiografía completa del productor en un solo lugar</div>
+        <div style="margin-top: 30px;">
+            <div style="font-size: 16px; color: #4478a7; font-weight: 600;">
+                🌾 Análisis Agrícola + 🐄 Análisis Ganadero
+            </div>
+            <div style="font-size: 14px; color: #666; margin-top: 10px;">
+                Sistema integrado con datos de SENASA/RENSPA y análisis satelital
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -755,7 +1222,7 @@ st.markdown("""
         <div style="flex: 1; min-width: 200px; margin-bottom: 20px;">
             <div style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">OneClickLending</div>
             <div style="font-size: 14px; margin-bottom: 10px;">La Radiografía del Productor</div>
-            <div style="font-size: 14px;">Sistema Integrado de Análisis Agrícola con Google Earth Engine</div>
+            <div style="font-size: 14px;">Sistema Integrado de Análisis Agrícola y Ganadero</div>
         </div>
         <div style="flex: 1; min-width: 200px; margin-bottom: 20px;">
             <div style="font-size: 16px; font-weight: 600; margin-bottom: 15px;">Contacto</div>
