@@ -624,21 +624,41 @@ if search_button or search_value:
                         mortandad_pct = st.slider("% Mortandad", 1, 5, int(ganaderia['parametrosCria']['mortandadRodeo']*100), 1) / 100
                         reposicion_pct = st.slider("% Reposición", 15, 30, int(ganaderia['parametrosCria']['reposicion']*100), 5) / 100
                     
-                    # Cálculos dinámicos
-                    terneros_nacidos = int(vacas_total * destete_pct)
-                    terneros_por_sexo = int(terneros_nacidos * 0.5)  # 50% cada uno
-                    toros_necesarios = int(vacas_total * ganaderia['parametrosCria']['torosEnRodeo'])
-                    vaquillonas = int(vacas_total * reposicion_pct)
+                    # Cálculos dinámicos CORREGIDOS según especificaciones
+                    # 1. Vaquillonas = 20% de las vacas (reposición)
+                    vaquillonas = int(vacas_total * 0.20)
                     
-                    # Mostrar cálculos automáticos
-                    st.markdown("**📊 Cálculos Automáticos:**")
+                    # 2. Terneros nacidos = 60% de las vacas (destete)
+                    terneros_nacidos = int(vacas_total * destete_pct)
+                    
+                    # 3. Dividir 50% terneros y 50% terneras
+                    terneros_machos = int(terneros_nacidos * 0.5)
+                    terneras_hembras = int(terneros_nacidos * 0.5)
+                    
+                    # 4. Toros = 4% del rodeo total
+                    # Calcular rodeo total primero (vacas + vaquillonas + terneros + terneras)
+                    rodeo_sin_toros = vacas_total + vaquillonas + terneros_machos + terneras_hembras
+                    toros_necesarios = int(rodeo_sin_toros * 0.04)
+                    
+                    # Stock dinámico corregido
                     stock_dinamico = {
                         "Vacas": vacas_total,
                         "Vaquillonas": vaquillonas,
-                        "Terneros": terneros_por_sexo,
-                        "Terneras": terneros_por_sexo,
+                        "Terneros": terneros_machos,
+                        "Terneras": terneras_hembras,
                         "Toros": toros_necesarios
                     }
+                    
+                    # Mostrar cálculos automáticos con explicación
+                    st.markdown("**📊 Cálculos Automáticos:**")
+                    st.markdown(f"""
+                    **Lógica de cálculo:**
+                    - Vaquillonas: {vacas_total:,} vacas × 20% = {vaquillonas:,}
+                    - Destete: {vacas_total:,} vacas × {destete_pct:.0%} = {terneros_nacidos:,} terneros
+                    - Terneros machos: {terneros_nacidos:,} × 50% = {terneros_machos:,}
+                    - Terneras hembras: {terneros_nacidos:,} × 50% = {terneras_hembras:,}
+                    - Toros: {rodeo_sin_toros:,} rodeo × 4% = {toros_necesarios:,}
+                    """)
                     
                     icons = {"Vacas": "🐄", "Vaquillonas": "🐮", "Terneros": "🐄", "Terneras": "🐄", "Toros": "🐂"}
                     total_dinamico = sum(stock_dinamico.values())
@@ -721,68 +741,49 @@ if search_button or search_value:
                 
                 # Datos históricos simulados basados en el Excel
                 # (En implementación real, estos vendrían de la hoja "Historicos")
-                fechas = pd.date_range(start='2022-01-01', end='2025-05-01', freq='M')
+                
+                # Crear fechas para cada período
+                fechas_2022 = pd.date_range(start='2022-01-01', end='2022-12-31', freq='M')
+                fechas_2023 = pd.date_range(start='2023-01-01', end='2023-12-31', freq='M')
+                fechas_2024 = pd.date_range(start='2024-01-01', end='2024-12-31', freq='M')
+                fechas_2025 = pd.date_range(start='2025-01-01', end='2025-05-31', freq='M')
+                
+                # Combinar todas las fechas
+                fechas = fechas_2022.tolist() + fechas_2023.tolist() + fechas_2024.tolist() + fechas_2025.tolist()
                 
                 # Precios históricos simulados (basados en tendencias del Excel)
+                precios_2022_terneros = np.linspace(400, 600, len(fechas_2022))
+                precios_2023_terneros = np.linspace(600, 1500, len(fechas_2023))
+                precios_2024_terneros = np.linspace(1500, 2200, len(fechas_2024))
+                precios_2025_terneros = np.linspace(2200, 2846, len(fechas_2025))
+                
+                precios_2022_terneras = np.linspace(350, 500, len(fechas_2022))
+                precios_2023_terneras = np.linspace(500, 1300, len(fechas_2023))
+                precios_2024_terneras = np.linspace(1300, 1900, len(fechas_2024))
+                precios_2025_terneras = np.linspace(1900, 2497, len(fechas_2025))
+                
+                precios_2022_vacas = np.linspace(300, 400, len(fechas_2022))
+                precios_2023_vacas = np.linspace(400, 600, len(fechas_2023))
+                precios_2024_vacas = np.linspace(600, 700, len(fechas_2024))
+                precios_2025_vacas = np.linspace(700, 743, len(fechas_2025))
+                
+                # Combinar todos los precios
+                all_precios_terneros = np.concatenate([precios_2022_terneros, precios_2023_terneros, precios_2024_terneros, precios_2025_terneros])
+                all_precios_terneras = np.concatenate([precios_2022_terneras, precios_2023_terneras, precios_2024_terneras, precios_2025_terneras])
+                all_precios_vacas = np.concatenate([precios_2022_vacas, precios_2023_vacas, precios_2024_vacas, precios_2025_vacas])
+                
                 precios_historicos = pd.DataFrame({
                     'Fecha': fechas,
-                    'Terneros': np.concatenate([
-                        np.linspace(400, 600, 12),  # 2022
-                        np.linspace(600, 1500, 12), # 2023
-                        np.linspace(1500, 2200, 12), # 2024
-                        np.linspace(2200, 2846, 5)   # 2025
-                    ]),
-                    'Terneras': np.concatenate([
-                        np.linspace(350, 500, 12),  # 2022
-                        np.linspace(500, 1300, 12), # 2023
-                        np.linspace(1300, 1900, 12), # 2024
-                        np.linspace(1900, 2497, 5)   # 2025
-                    ]),
-                    'Vacas': np.concatenate([
-                        np.linspace(300, 400, 12),  # 2022
-                        np.linspace(400, 600, 12),  # 2023
-                        np.linspace(600, 700, 12),  # 2024
-                        np.linspace(700, 743, 5)    # 2025
-                    ])
+                    'Terneros': all_precios_terneros,
+                    'Terneras': all_precios_terneras,
+                    'Vacas': all_precios_vacas
                 })
                 
-                # Gráfico estilo DCAC
-                st.subheader("Tendencia de Precios - Terneros")
+                # Gráfico estilo DCAC usando st.line_chart (más simple y sin errores)
+                st.subheader("Tendencia de Precios")
                 
-                # Crear gráfico con plotly para mejor visualización
-                import plotly.graph_objects as go
-                
-                fig_precios = go.Figure()
-                
-                # Línea de terneros
-                fig_precios.add_trace(go.Scatter(
-                    x=precios_historicos['Fecha'],
-                    y=precios_historicos['Terneros'],
-                    mode='lines+markers',
-                    name='Terneros -160 kg',
-                    line=dict(color='#4478a7', width=3),
-                    marker=dict(size=6)
-                ))
-                
-                # Línea de terneras
-                fig_precios.add_trace(go.Scatter(
-                    x=precios_historicos['Fecha'],
-                    y=precios_historicos['Terneras'],
-                    mode='lines+markers',
-                    name='Terneras -160 kg',
-                    line=dict(color='#7aa0c3', width=3),
-                    marker=dict(size=6)
-                ))
-                
-                fig_precios.update_layout(
-                    title="Evolución de Precios Ganaderos (USD/Cabeza)",
-                    xaxis_title="Fecha",
-                    yaxis_title="Precio (USD)",
-                    height=400,
-                    hovermode='x unified'
-                )
-                
-                st.plotly_chart(fig_precios, use_container_width=True)
+                precios_chart = precios_historicos.set_index('Fecha')
+                st.line_chart(precios_chart, height=400)
                 
                 # Análisis de promedios históricos
                 st.subheader("Comparación vs Promedios Históricos")
@@ -793,15 +794,17 @@ if search_button or search_value:
                 precio_actual_terneros = 2846
                 precio_actual_terneras = 2497
                 
-                promedio_5_anos_terneros = precios_historicos['Terneros'].tail(60).mean()  # Últimos 5 años
+                # Obtener últimos 12 meses para promedio anual
+                ultimos_12_meses = precios_historicos.tail(12)
+                promedio_anual_terneros = ultimos_12_meses['Terneros'].mean()
                 promedio_total_terneros = precios_historicos['Terneros'].mean()
                 
                 with col1:
-                    diferencia_5_anos = ((precio_actual_terneros - promedio_5_anos_terneros) / promedio_5_anos_terneros) * 100
+                    diferencia_anual = ((precio_actual_terneros - promedio_anual_terneros) / promedio_anual_terneros) * 100
                     st.metric(
-                        "vs Promedio 5 años", 
-                        f"{diferencia_5_anos:+.1f}%",
-                        f"${promedio_5_anos_terneros:.0f} → ${precio_actual_terneros:.0f}"
+                        "vs Promedio Anual", 
+                        f"{diferencia_anual:+.1f}%",
+                        f"${promedio_anual_terneros:.0f} → ${precio_actual_terneros:.0f}"
                     )
                 
                 with col2:
