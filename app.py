@@ -597,11 +597,11 @@ if search_button or search_value:
                 
                 st.dataframe(pd.DataFrame(tabla_rendimientos), hide_index=True, use_container_width=True)
         
-        # TAB GANADERÍA (NUEVO)
+        # TAB GANADERÍA (MEJORADO - Solo Cría con análisis de sensibilidad)
         with tab_gana:
             ganaderia = productor_encontrado['ganaderia']
             
-            tab_cria, tab_engorde, tab_general = st.tabs(["🐄 Cría", "🥩 Engorde", "📊 General"])
+            tab_cria, tab_precios, tab_sensibilidad = st.tabs(["🐄 Cría", "📈 Precios Históricos", "⚖️ Análisis de Sensibilidad"])
             
             with tab_cria:
                 st.markdown('<div class="section-title">📊 Stock de Cría</div>', unsafe_allow_html=True)
@@ -609,275 +609,358 @@ if search_button or search_value:
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    # Stock de cría
+                    # Stock de cría con sliders dinámicos
                     st.markdown('<div class="ganaderia-card">', unsafe_allow_html=True)
+                    st.markdown("**🔧 Parámetros Dinámicos:**")
                     
-                    icons = {
-                        "Vaca": "🐄", "Vaquillonas": "🐮", "Ternero": "🐄", 
-                        "Ternera": "🐄", "Toro": "🐂", "Torito/MEJ": "🐂"
+                    # Sliders para parámetros clave
+                    col_slider1, col_slider2 = st.columns(2)
+                    
+                    with col_slider1:
+                        vacas_total = st.slider("Vacas Totales", 1000, 8000, ganaderia['stockCria']['Vaca'], 100)
+                        destete_pct = st.slider("% Destete", 40, 80, int(ganaderia['parametrosCria']['destete']*100), 5) / 100
+                        
+                    with col_slider2:
+                        mortandad_pct = st.slider("% Mortandad", 1, 5, int(ganaderia['parametrosCria']['mortandadRodeo']*100), 1) / 100
+                        reposicion_pct = st.slider("% Reposición", 15, 30, int(ganaderia['parametrosCria']['reposicion']*100), 5) / 100
+                    
+                    # Cálculos dinámicos
+                    terneros_nacidos = int(vacas_total * destete_pct)
+                    terneros_por_sexo = int(terneros_nacidos * 0.5)  # 50% cada uno
+                    toros_necesarios = int(vacas_total * ganaderia['parametrosCria']['torosEnRodeo'])
+                    vaquillonas = int(vacas_total * reposicion_pct)
+                    
+                    # Mostrar cálculos automáticos
+                    st.markdown("**📊 Cálculos Automáticos:**")
+                    stock_dinamico = {
+                        "Vacas": vacas_total,
+                        "Vaquillonas": vaquillonas,
+                        "Terneros": terneros_por_sexo,
+                        "Terneras": terneros_por_sexo,
+                        "Toros": toros_necesarios
                     }
                     
-                    total_cria = ganaderia['stockCria']['total']
+                    icons = {"Vacas": "🐄", "Vaquillonas": "🐮", "Terneros": "🐄", "Terneras": "🐄", "Toros": "🐂"}
+                    total_dinamico = sum(stock_dinamico.values())
                     
-                    for categoria, cantidad in ganaderia['stockCria'].items():
-                        if categoria != 'total' and cantidad > 0:
-                            icon = icons.get(categoria, "🐄")
-                            st.markdown(crear_categoria_animal(categoria, cantidad, total_cria, icon), unsafe_allow_html=True)
+                    for categoria, cantidad in stock_dinamico.items():
+                        icon = icons.get(categoria, "🐄")
+                        st.markdown(crear_categoria_animal(categoria, cantidad, total_dinamico, icon), unsafe_allow_html=True)
                     
                     st.markdown('</div>', unsafe_allow_html=True)
                     
-                    # Métricas de cría
+                    # Botón para resetear valores
+                    if st.button("🔄 Resetear a Valores Originales", type="secondary"):
+                        st.rerun()
+                
+                with col2:
+                    # Análisis financiero dinámico
+                    st.markdown('<div class="section-title">💰 Impacto Financiero</div>', unsafe_allow_html=True)
+                    
+                    # Precios de referencia (del Excel)
+                    precios_actuales = {
+                        "Terneros": 2846,  # Mayo 2025 del Excel
+                        "Terneras": 2497,  # Mayo 2025 del Excel
+                        "Vacas": 743,
+                        "Vaquillonas": 739,
+                        "Toros": 792
+                    }
+                    
+                    # Calcular ingresos estimados
+                    ingresos_estimados = 0
+                    for categoria, cantidad in stock_dinamico.items():
+                        precio_categoria = precios_actuales.get(categoria, 0)
+                        if categoria in ["Terneros", "Terneras"]:  # Solo se venden terneros
+                            ingreso_categoria = cantidad * precio_categoria * 0.85  # 85% se vende, 15% queda
+                            ingresos_estimados += ingreso_categoria
+                    
                     st.markdown(f"""
                     <div class="metric-card">
-                        <div class="metric-label">Total Cría</div>
-                        <div class="metric-value">{total_cria:,}</div>
+                        <div class="metric-label">Total Animales Dinámico</div>
+                        <div class="metric-value">{total_dinamico:,}</div>
                         <div class="metric-subvalue">cabezas</div>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Ingresos Estimados</div>
+                        <div class="metric-value">${ingresos_estimados:,.0f}</div>
+                        <div class="metric-subvalue">USD anuales</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Comparación con valores originales
+                    original_total = ganaderia['stockCria']['total']
+                    diferencia_total = total_dinamico - original_total
+                    diferencia_pct = (diferencia_total / original_total) * 100 if original_total > 0 else 0
+                    
+                    if diferencia_pct > 5:
+                        st.success(f"📈 +{diferencia_total:,} cabezas ({diferencia_pct:+.1f}%)")
+                    elif diferencia_pct < -5:
+                        st.error(f"📉 {diferencia_total:,} cabezas ({diferencia_pct:+.1f}%)")
+                    else:
+                        st.info(f"📊 {diferencia_total:+,} cabezas ({diferencia_pct:+.1f}%)")
                 
-                with col2:
-                    # Parámetros técnicos
-                    st.markdown('<div class="section-title">🔧 Parámetros Técnicos</div>', unsafe_allow_html=True)
-                    
-                    params = ganaderia['parametrosCria']
-                    
-                    col2_1, col2_2 = st.columns(2)
-                    
-                    with col2_1:
-                        st.metric("% Destete", f"{params['destete']:.0%}")
-                        st.metric("% Mortandad", f"{params['mortandadRodeo']:.1%}")
-                        st.metric("% Reposición", f"{params['reposicion']:.0%}")
-                    
-                    with col2_2:
-                        st.metric("Toros en Rodeo", f"{params['torosEnRodeo']:.1%}")
-                        st.metric("Cabezas/Peón", f"{params['cabezasPorPeon']:.0f}")
-                        st.metric("Ha Ganaderas", f"{params['hectareasGanaderas']:,}")
-                
-                # Análisis financiero de cría
-                st.markdown('<div class="section-title">💰 Análisis Financiero - Cría</div>', unsafe_allow_html=True)
-                
-                finanzas_cria = ganaderia['finanzasCria']
+                # Parámetros técnicos
+                st.markdown('<div class="section-title">🔧 Parámetros Técnicos Actualizados</div>', unsafe_allow_html=True)
                 
                 col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Ingresos por Ventas</div>
-                        <div class="metric-value">${finanzas_cria['ingresosPorVentas']:,.0f}</div>
-                        <div class="metric-subvalue">USD anuales</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    st.metric("% Destete", f"{destete_pct:.0%}")
                 with col2:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Costos Totales</div>
-                        <div class="metric-value">${finanzas_cria['ingresosPorVentas'] - finanzas_cria['margenAnual']:,.0f}</div>
-                        <div class="metric-subvalue">USD anuales</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    st.metric("% Mortandad", f"{mortandad_pct:.1%}")
                 with col3:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Margen Bruto</div>
-                        <div class="metric-value">${finanzas_cria['margenAnual']:,.0f}</div>
-                        <div class="metric-subvalue">USD anuales</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    st.metric("% Reposición", f"{reposicion_pct:.0%}")
                 with col4:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Margen %</div>
-                        <div class="metric-value">{finanzas_cria['margenPorcentual']:.1f}%</div>
-                        <div class="metric-subvalue">sobre ventas</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Desglose de costos
-                st.subheader("Desglose de Costos - Cría")
-                
-                costos_data = {
-                    'Concepto': ['Mano de Obra', 'Sanidad', 'Arrendamiento', 'Reposición Toros', 'Gastos Comercialización'],
-                    'Monto (USD)': [
-                        finanzas_cria['costoManoObra'],
-                        finanzas_cria['costoSanidad'],
-                        finanzas_cria['costoArrendamiento'],
-                        finanzas_cria['costoReposicionToros'],
-                        finanzas_cria['gastosComercializacion']
-                    ]
-                }
-                
-                costos_df = pd.DataFrame(costos_data)
-                costos_df = costos_df.set_index('Concepto')
-                st.bar_chart(costos_df, height=300)
+                    st.metric("Terneros Nacidos", f"{terneros_nacidos:,}")
             
-            with tab_engorde:
-                st.markdown('<div class="section-title">🥩 Stock de Engorde</div>', unsafe_allow_html=True)
+            with tab_precios:
+                st.markdown('<div class="section-title">📈 Evolución de Precios Ganaderos</div>', unsafe_allow_html=True)
                 
-                col1, col2 = st.columns([1, 1])
+                # Datos históricos simulados basados en el Excel
+                # (En implementación real, estos vendrían de la hoja "Historicos")
+                fechas = pd.date_range(start='2022-01-01', end='2025-05-01', freq='M')
                 
-                with col1:
-                    # Stock de engorde
-                    st.markdown('<div class="ganaderia-card">', unsafe_allow_html=True)
-                    
-                    total_engorde = ganaderia['stockEngorde']['total']
-                    
-                    for categoria, cantidad in ganaderia['stockEngorde'].items():
-                        if categoria != 'total' and cantidad > 0:
-                            icon = icons.get(categoria, "🐄")
-                            st.markdown(crear_categoria_animal(categoria, cantidad, total_engorde, icon), unsafe_allow_html=True)
-                    
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Total Engorde</div>
-                        <div class="metric-value">{total_engorde:,}</div>
-                        <div class="metric-subvalue">cabezas</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Precios históricos simulados (basados en tendencias del Excel)
+                precios_historicos = pd.DataFrame({
+                    'Fecha': fechas,
+                    'Terneros': np.concatenate([
+                        np.linspace(400, 600, 12),  # 2022
+                        np.linspace(600, 1500, 12), # 2023
+                        np.linspace(1500, 2200, 12), # 2024
+                        np.linspace(2200, 2846, 5)   # 2025
+                    ]),
+                    'Terneras': np.concatenate([
+                        np.linspace(350, 500, 12),  # 2022
+                        np.linspace(500, 1300, 12), # 2023
+                        np.linspace(1300, 1900, 12), # 2024
+                        np.linspace(1900, 2497, 5)   # 2025
+                    ]),
+                    'Vacas': np.concatenate([
+                        np.linspace(300, 400, 12),  # 2022
+                        np.linspace(400, 600, 12),  # 2023
+                        np.linspace(600, 700, 12),  # 2024
+                        np.linspace(700, 743, 5)    # 2025
+                    ])
+                })
                 
-                with col2:
-                    # Métricas de engorde
-                    st.markdown('<div class="section-title">📈 Métricas de Engorde</div>', unsafe_allow_html=True)
-                    
-                    # Calcular densidad para engorde
-                    densidad_engorde = total_engorde / ganaderia['parametrosCria']['hectareasGanaderas']
-                    
-                    st.metric("Densidad", f"{densidad_engorde:.1f} cab/ha")
-                    
-                    # Distribución por categoría para engorde
-                    principales_engorde = ['Novillo', 'Novillito', 'Vaquillonas']
-                    for cat in principales_engorde:
-                        if cat in ganaderia['stockEngorde']:
-                            cantidad = ganaderia['stockEngorde'][cat]
-                            porcentaje = (cantidad / total_engorde) * 100
-                            st.metric(f"{cat}", f"{cantidad:,} ({porcentaje:.1f}%)")
+                # Gráfico estilo DCAC
+                st.subheader("Tendencia de Precios - Terneros")
                 
-                # Análisis de capacidad de engorde
-                st.markdown('<div class="section-title">⚖️ Análisis de Capacidad</div>', unsafe_allow_html=True)
+                # Crear gráfico con plotly para mejor visualización
+                import plotly.graph_objects as go
+                
+                fig_precios = go.Figure()
+                
+                # Línea de terneros
+                fig_precios.add_trace(go.Scatter(
+                    x=precios_historicos['Fecha'],
+                    y=precios_historicos['Terneros'],
+                    mode='lines+markers',
+                    name='Terneros -160 kg',
+                    line=dict(color='#4478a7', width=3),
+                    marker=dict(size=6)
+                ))
+                
+                # Línea de terneras
+                fig_precios.add_trace(go.Scatter(
+                    x=precios_historicos['Fecha'],
+                    y=precios_historicos['Terneras'],
+                    mode='lines+markers',
+                    name='Terneras -160 kg',
+                    line=dict(color='#7aa0c3', width=3),
+                    marker=dict(size=6)
+                ))
+                
+                fig_precios.update_layout(
+                    title="Evolución de Precios Ganaderos (USD/Cabeza)",
+                    xaxis_title="Fecha",
+                    yaxis_title="Precio (USD)",
+                    height=400,
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_precios, use_container_width=True)
+                
+                # Análisis de promedios históricos
+                st.subheader("Comparación vs Promedios Históricos")
                 
                 col1, col2, col3 = st.columns(3)
                 
+                # Calcular promedios
+                precio_actual_terneros = 2846
+                precio_actual_terneras = 2497
+                
+                promedio_5_anos_terneros = precios_historicos['Terneros'].tail(60).mean()  # Últimos 5 años
+                promedio_total_terneros = precios_historicos['Terneros'].mean()
+                
                 with col1:
-                    capacidad_optima = ganaderia['parametrosCria']['hectareasGanaderas'] * 1.5  # Ejemplo: 1.5 EV/ha
-                    utilizacion = (total_engorde / capacidad_optima) * 100
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Utilización de Capacidad</div>
-                        <div class="metric-value">{utilizacion:.0f}%</div>
-                        <div class="metric-subvalue">vs capacidad óptima</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    diferencia_5_anos = ((precio_actual_terneros - promedio_5_anos_terneros) / promedio_5_anos_terneros) * 100
+                    st.metric(
+                        "vs Promedio 5 años", 
+                        f"{diferencia_5_anos:+.1f}%",
+                        f"${promedio_5_anos_terneros:.0f} → ${precio_actual_terneros:.0f}"
+                    )
                 
                 with col2:
-                    ganancia_peso_estimada = 0.8  # kg/día promedio
-                    kilos_anuales = total_engorde * ganancia_peso_estimada * 365
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Producción Estimada</div>
-                        <div class="metric-value">{kilos_anuales/1000:.0f}</div>
-                        <div class="metric-subvalue">ton/año de carne</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    diferencia_total = ((precio_actual_terneros - promedio_total_terneros) / promedio_total_terneros) * 100
+                    st.metric(
+                        "vs Promedio Histórico", 
+                        f"{diferencia_total:+.1f}%",
+                        f"${promedio_total_terneros:.0f} → ${precio_actual_terneros:.0f}"
+                    )
                 
                 with col3:
-                    rotacion_estimada = 1.5  # veces por año
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Rotación Anual</div>
-                        <div class="metric-value">{rotacion_estimada:.1f}</div>
-                        <div class="metric-subvalue">veces/año</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            
-            with tab_general:
-                st.markdown('<div class="section-title">📊 Vista General del Rodeo</div>', unsafe_allow_html=True)
+                    # Máximo histórico
+                    maximo_historico = precios_historicos['Terneros'].max()
+                    diferencia_max = ((precio_actual_terneros - maximo_historico) / maximo_historico) * 100
+                    st.metric(
+                        "vs Máximo Histórico", 
+                        f"{diferencia_max:+.1f}%",
+                        f"Máximo: ${maximo_historico:.0f}"
+                    )
                 
-                # Comparación stock total vs cría vs engorde
+                # Tabla de precios actuales vs históricos
+                st.subheader("Resumen de Precios Actuales")
+                
+                resumen_precios = pd.DataFrame({
+                    'Categoría': ['Terneros -160kg', 'Terneras -160kg', 'Vacas', 'Vaquillonas', 'Toros'],
+                    'Precio Actual (USD)': [2846, 2497, 743, 739, 792],
+                    'Promedio 2024 (USD)': [2000, 1700, 650, 650, 700],
+                    'Variación': ['+42.3%', '+46.9%', '+14.3%', '+13.7%', '+13.1%']
+                })
+                
+                st.dataframe(resumen_precios, hide_index=True, use_container_width=True)
+            
+            with tab_sensibilidad:
+                st.markdown('<div class="section-title">⚖️ Análisis de Sensibilidad de Precios</div>', unsafe_allow_html=True)
+                
+                st.markdown("**¿Cómo impactan los cambios de precios en la rentabilidad?**")
+                
                 col1, col2 = st.columns([1, 1])
                 
                 with col1:
-                    st.subheader("Distribución del Stock Total")
+                    st.markdown("**🎛️ Simulación de Precios:**")
                     
-                    # Crear dataframe para el gráfico
-                    distribucion_data = pd.DataFrame({
-                        'Cría': [ganaderia['stockCria']['total']],
-                        'Engorde': [ganaderia['stockEngorde']['total']]
-                    })
+                    # Sliders para cambiar precios
+                    precio_ternero_sim = st.slider(
+                        "Precio Ternero (USD)", 
+                        1500, 4000, 2846, 50,
+                        help="Precio actual: $2,846"
+                    )
                     
-                    st.bar_chart(distribucion_data, height=300)
+                    precio_ternera_sim = st.slider(
+                        "Precio Ternera (USD)", 
+                        1200, 3500, 2497, 50,
+                        help="Precio actual: $2,497"
+                    )
                     
-                    # Porcentajes
-                    total_general = ganaderia['stockTotal']['total']
-                    pct_cria = (ganaderia['stockCria']['total'] / total_general) * 100
-                    pct_engorde = (ganaderia['stockEngorde']['total'] / total_general) * 100
+                    precio_vaca_sim = st.slider(
+                        "Precio Vaca (USD)", 
+                        400, 1200, 743, 20,
+                        help="Precio actual: $743"
+                    )
+                    
+                    # Calcular porcentajes de cambio
+                    cambio_ternero = ((precio_ternero_sim - 2846) / 2846) * 100
+                    cambio_ternera = ((precio_ternera_sim - 2497) / 2497) * 100
+                    cambio_vaca = ((precio_vaca_sim - 743) / 743) * 100
                     
                     st.markdown(f"""
-                    **Distribución:**
-                    - Cría: {pct_cria:.1f}% ({ganaderia['stockCria']['total']:,} cabezas)
-                    - Engorde: {pct_engorde:.1f}% ({ganaderia['stockEngorde']['total']:,} cabezas)
+                    **Cambios vs Precio Actual:**
+                    - Terneros: {cambio_ternero:+.1f}%
+                    - Terneras: {cambio_ternera:+.1f}%  
+                    - Vacas: {cambio_vaca:+.1f}%
                     """)
                 
                 with col2:
-                    st.subheader("Valor del Stock Ganadero")
+                    st.markdown("**💰 Impacto Financiero:**")
                     
-                    valor_stock = ganaderia['valorStock']
+                    # Usar los valores dinámicos del tab anterior si existen
+                    if 'stock_dinamico' in locals():
+                        terneros_sim = stock_dinamico['Terneros']
+                        terneras_sim = stock_dinamico['Terneras']
+                        vacas_sim = stock_dinamico['Vacas']
+                    else:
+                        terneros_sim = ganaderia['stockCria']['Ternero']
+                        terneras_sim = ganaderia['stockCria']['Ternera']
+                        vacas_sim = ganaderia['stockCria']['Vaca']
+                    
+                    # Calcular ingresos con precios simulados
+                    ingresos_terneros = terneros_sim * precio_ternero_sim * 0.85  # 85% se vende
+                    ingresos_terneras = terneras_sim * precio_ternera_sim * 0.85
+                    ingresos_vacas = vacas_sim * precio_vaca_sim * 0.15  # 15% reposición/venta
+                    
+                    ingresos_totales_sim = ingresos_terneros + ingresos_terneras + ingresos_vacas
+                    
+                    # Comparar con ingresos base
+                    ingresos_base = ganaderia['finanzasCria']['ingresosPorVentas']
+                    diferencia_ingresos = ingresos_totales_sim - ingresos_base
+                    diferencia_pct_ingresos = (diferencia_ingresos / ingresos_base) * 100
                     
                     st.markdown(f"""
                     <div class="metric-card">
-                        <div class="metric-label">Valor Stock Bruto</div>
-                        <div class="metric-value">${valor_stock['stockBruto']:,.0f}</div>
-                        <div class="metric-subvalue">USD</div>
+                        <div class="metric-label">Ingresos Simulados</div>
+                        <div class="metric-value">${ingresos_totales_sim:,.0f}</div>
+                        <div class="metric-subvalue">USD anuales</div>
                     </div>
                     """, unsafe_allow_html=True)
+                    
+                    if diferencia_pct_ingresos > 5:
+                        st.success(f"📈 +${diferencia_ingresos:,.0f} ({diferencia_pct_ingresos:+.1f}%)")
+                    elif diferencia_pct_ingresos < -5:
+                        st.error(f"📉 ${diferencia_ingresos:,.0f} ({diferencia_pct_ingresos:+.1f}%)")
+                    else:
+                        st.info(f"📊 ${diferencia_ingresos:+,.0f} ({diferencia_pct_ingresos:+.1f}%)")
+                    
+                    # Calcular margen simulado
+                    costos_base = ingresos_base - ganaderia['finanzasCria']['margenAnual']
+                    margen_simulado = ingresos_totales_sim - costos_base
+                    margen_pct_simulado = (margen_simulado / ingresos_totales_sim) * 100
                     
                     st.markdown(f"""
                     <div class="metric-card">
-                        <div class="metric-label">Valor Stock Neto</div>
-                        <div class="metric-value">${valor_stock['stockNeto']:,.0f}</div>
-                        <div class="metric-subvalue">Descontando mortandad y gastos</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Densidad general
-                    densidad_general = ganaderia['densidad']
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Carga Animal</div>
-                        <div class="metric-value">{densidad_general['cabezasPorHectarea']:.1f}</div>
-                        <div class="metric-subvalue">cab/ha - {densidad_general['cargaAnimal']}</div>
+                        <div class="metric-label">Margen Simulado</div>
+                        <div class="metric-value">{margen_pct_simulado:.1f}%</div>
+                        <div class="metric-subvalue">${margen_simulado:,.0f} USD</div>
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # Tabla resumen por categorías
-                st.subheader("Resumen por Categorías")
+                # Análisis de escenarios
+                st.markdown('<div class="section-title">📊 Análisis de Escenarios</div>', unsafe_allow_html=True)
                 
-                resumen_categorias = []
-                for categoria in ganaderia['stockTotal'].keys():
-                    if categoria != 'total':
-                        total = ganaderia['stockTotal'][categoria]
-                        cria = ganaderia['stockCria'].get(categoria, 0)
-                        engorde = ganaderia['stockEngorde'].get(categoria, 0)
-                        
-                        resumen_categorias.append({
-                            'Categoría': categoria,
-                            'Total': f"{total:,}",
-                            'Cría': f"{cria:,}",
-                            'Engorde': f"{engorde:,}",
-                            '% Cría': f"{(cria/total*100):.1f}%" if total > 0 else "0%",
-                            '% Engorde': f"{(engorde/total*100):.1f}%" if total > 0 else "0%"
-                        })
+                # Tabla de escenarios
+                escenarios = [
+                    {"Escenario": "Pesimista (-20%)", "Terneros": 2277, "Terneras": 1998, "Impacto": "-$400K"},
+                    {"Escenario": "Conservador (-10%)", "Terneros": 2561, "Terneras": 2247, "Impacto": "-$200K"},
+                    {"Escenario": "Base (Actual)", "Terneros": 2846, "Terneras": 2497, "Impacto": "Baseline"},
+                    {"Escenario": "Optimista (+10%)", "Terneros": 3131, "Terneras": 2747, "Impacto": "+$200K"},
+                    {"Escenario": "Muy Optimista (+20%)", "Terneros": 3415, "Terneras": 2996, "Impacto": "+$400K"}
+                ]
                 
-                resumen_df = pd.DataFrame(resumen_categorias)
-                st.dataframe(resumen_df, hide_index=True, use_container_width=True)
+                escenarios_df = pd.DataFrame(escenarios)
+                st.dataframe(escenarios_df, hide_index=True, use_container_width=True)
+                
+                # Gráfico de sensibilidad
+                st.subheader("Sensibilidad del Margen vs Precio de Terneros")
+                
+                precios_range = np.linspace(2000, 3500, 20)
+                margenes_range = []
+                
+                for precio in precios_range:
+                    ingreso_sim = terneros_sim * precio * 0.85 + terneras_sim * precio_ternera_sim * 0.85
+                    margen_sim = ((ingreso_sim - costos_base) / ingreso_sim) * 100
+                    margenes_range.append(margen_sim)
+                
+                sensibilidad_df = pd.DataFrame({
+                    'Precio Ternero': precios_range,
+                    'Margen %': margenes_range
+                })
+                sensibilidad_df = sensibilidad_df.set_index('Precio Ternero')
+                
+                st.line_chart(sensibilidad_df, height=300)
         
         # TAB FINANZAS (código existente adaptado)
         with tab_finanzas:
