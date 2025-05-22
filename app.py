@@ -1,13 +1,8 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import folium
-from streamlit_folium import st_folium
 import numpy as np
 from datetime import datetime, timedelta
-import json
+import math
 
 # Configuración de la página
 st.set_page_config(
@@ -84,9 +79,9 @@ st.markdown("""
         margin-bottom: 30px;
     }
     
-    .positive { color: #2ecc71; }
-    .warning { color: #f39c12; }
-    .negative { color: #e74c3c; }
+    .positive { color: #2ecc71; font-weight: bold; }
+    .warning { color: #f39c12; font-weight: bold; }
+    .negative { color: #e74c3c; font-weight: bold; }
     .neutral { color: #666666; }
     
     .criteria-pass { 
@@ -112,6 +107,30 @@ st.markdown("""
         border-radius: 4px;
         font-weight: 600;
     }
+    
+    .progress-bar {
+        background-color: #f0f0f0;
+        border-radius: 10px;
+        overflow: hidden;
+        height: 20px;
+        margin: 5px 0;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        border-radius: 10px;
+        text-align: center;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .progress-good { background-color: #2ecc71; }
+    .progress-warning { background-color: #f39c12; }
+    .progress-bad { background-color: #e74c3c; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -136,12 +155,9 @@ def load_data():
             "departamento": "San Justo",
             "provincia": "Santa Fe",
             "poligonos": [
-                {"id": "P001", "tipo": "Agricola", "superficie": 1200, 
-                 "coordenadas": [[-31.569, -60.710], [-31.582, -60.710], [-31.582, -60.690], [-31.569, -60.690]]},
-                {"id": "P002", "tipo": "Agricola", "superficie": 800,
-                 "coordenadas": [[-31.590, -60.710], [-31.600, -60.710], [-31.600, -60.690], [-31.590, -60.690]]},
-                {"id": "P003", "tipo": "No_Agricola", "superficie": 500,
-                 "coordenadas": [[-31.610, -60.710], [-31.620, -60.710], [-31.620, -60.690], [-31.610, -60.690]]}
+                {"id": "P001", "tipo": "Agrícola", "superficie": 1200},
+                {"id": "P002", "tipo": "Agrícola", "superficie": 800},
+                {"id": "P003", "tipo": "No Agrícola", "superficie": 500}
             ],
             "rotacionCultivos": [
                 {"campania": "19-20", "soja": 45, "maiz": 30, "girasol": 10, "maiz2da": 5, "noAgricola": 10},
@@ -204,6 +220,37 @@ def load_data():
     }
     
     return productores_data, datos_analisis
+
+def crear_progress_bar(valor, maximo, tipo="good"):
+    porcentaje = (valor / maximo) * 100
+    return f"""
+    <div class="progress-bar">
+        <div class="progress-fill progress-{tipo}" style="width: {porcentaje}%;">
+            {porcentaje:.1f}%
+        </div>
+    </div>
+    """
+
+def crear_gauge_simple(valor, maximo, titulo, subtitulo=""):
+    porcentaje = (valor / maximo) * 100
+    color = "#2ecc71" if porcentaje >= 75 else "#f39c12" if porcentaje >= 50 else "#e74c3c"
+    
+    return f"""
+    <div style="text-align: center; padding: 20px; background-color: #f5f5f5; border-radius: 8px; margin: 10px 0;">
+        <div style="font-size: 36px; font-weight: bold; color: {color};">
+            {valor}
+        </div>
+        <div style="font-size: 14px; color: #666; margin: 5px 0;">
+            {titulo}
+        </div>
+        <div style="font-size: 12px; color: #666;">
+            {subtitulo}
+        </div>
+        <div style="background-color: #e0e0e0; height: 8px; border-radius: 4px; margin: 10px 0; overflow: hidden;">
+            <div style="background-color: {color}; height: 100%; width: {porcentaje}%; border-radius: 4px;"></div>
+        </div>
+    </div>
+    """
 
 # Cargar datos
 productores_data, datos_analisis = load_data()
@@ -328,61 +375,41 @@ if search_button or search_value:
         
         # Tab 1: Información General
         with tab1:
-            # Gráfico de rotación de cultivos
-            st.subheader("Rotación de Cultivos (Campañas 2019-2024)")
+            col1, col2 = st.columns([2, 1])
             
-            rotacion_df = pd.DataFrame(productor_encontrado['rotacionCultivos'])
-            
-            fig_rotacion = go.Figure()
-            
-            colors = {
-                'soja': '#7aa0c3',
-                'maiz': '#4478a7',
-                'girasol': '#FFD740',
-                'maiz2da': '#8aba5f',
-                'noAgricola': '#e0e0e0'
-            }
-            
-            for cultivo in ['soja', 'maiz', 'girasol', 'maiz2da', 'noAgricola']:
-                fig_rotacion.add_trace(go.Bar(
-                    name=cultivo.replace('maiz2da', 'Maíz 2da').replace('noAgricola', 'No Agrícola').title(),
-                    x=rotacion_df['campania'],
-                    y=rotacion_df[cultivo],
-                    marker_color=colors[cultivo]
-                ))
-            
-            fig_rotacion.update_layout(
-                barmode='stack',
-                title="Evolución de Cultivos por Campaña (%)",
-                xaxis_title="Campaña",
-                yaxis_title="Porcentaje (%)",
-                height=400
-            )
-            
-            st.plotly_chart(fig_rotacion, use_container_width=True)
-            
-            # Mapa de polígonos
-            st.subheader("Polígonos Productivos")
-            
-            # Crear mapa centrado en los datos
-            center_lat = -31.585
-            center_lon = -60.700
-            
-            m = folium.Map(location=[center_lat, center_lon], zoom_start=11)
-            
-            for poligono in productor_encontrado['poligonos']:
-                color = '#8aba5f' if poligono['tipo'] == 'Agricola' else '#e0e0e0'
+            with col1:
+                st.subheader("Rotación de Cultivos (Campañas 2019-2024)")
                 
-                folium.Polygon(
-                    locations=poligono['coordenadas'],
-                    color='#4478a7',
-                    weight=1,
-                    fillColor=color,
-                    fillOpacity=0.7,
-                    popup=f"ID: {poligono['id']}<br>Tipo: {poligono['tipo']}<br>Superficie: {poligono['superficie']:,} ha"
-                ).add_to(m)
+                # Preparar datos para gráfico
+                rotacion_df = pd.DataFrame(productor_encontrado['rotacionCultivos'])
+                rotacion_df = rotacion_df.set_index('campania')
+                
+                # Renombrar columnas para mejor presentación
+                rotacion_df.columns = [col.replace('maiz2da', 'Maíz 2da').replace('noAgricola', 'No Agrícola').title() for col in rotacion_df.columns]
+                
+                st.bar_chart(rotacion_df, height=400)
+                
+                st.info("📊 Gráfico de barras apiladas mostrando la evolución de cultivos por campaña")
             
-            st_folium(m, width=700, height=400)
+            with col2:
+                st.subheader("Polígonos Productivos")
+                
+                # Mostrar información de polígonos en tabla
+                poligonos_df = pd.DataFrame([
+                    {
+                        'ID': p['id'],
+                        'Tipo': p['tipo'],
+                        'Superficie (ha)': f"{p['superficie']:,}"
+                    } for p in productor_encontrado['poligonos']
+                ])
+                st.dataframe(poligonos_df, hide_index=True, use_container_width=True)
+                
+                # Resumen de polígonos
+                total_agricola = sum(p['superficie'] for p in productor_encontrado['poligonos'] if p['tipo'] == 'Agrícola')
+                total_no_agricola = sum(p['superficie'] for p in productor_encontrado['poligonos'] if p['tipo'] == 'No Agrícola')
+                
+                st.metric("Total Agrícola", f"{total_agricola:,} ha")
+                st.metric("Total No Agrícola", f"{total_no_agricola:,} ha")
         
         # Tab 2: Rendimientos
         with tab2:
@@ -396,46 +423,39 @@ if search_button or search_value:
                 if rd:
                     rendimientos_data.append({
                         'Cultivo': rp['cultivo'],
-                        'Propio 5 años': rp['rendimiento5'],
-                        'Departamento 5 años': rd['rendimiento5'],
-                        'Propio 10 años': rp['rendimiento10'],
-                        'Departamento 10 años': rd['rendimiento10']
+                        'Propio_5': rp['rendimiento5'],
+                        'Depto_5': rd['rendimiento5'],
+                        'Propio_10': rp['rendimiento10'],
+                        'Depto_10': rd['rendimiento10']
                     })
             
             rendimientos_df = pd.DataFrame(rendimientos_data)
+            rendimientos_df = rendimientos_df.set_index('Cultivo')
             
             # Gráfico de barras comparativo
-            fig_rend = go.Figure()
-            
-            colors_rend = ['#4478a7', '#7aa0c3', '#8aba5f', '#a5d683']
-            
-            for i, col in enumerate(['Propio 5 años', 'Departamento 5 años', 'Propio 10 años', 'Departamento 10 años']):
-                fig_rend.add_trace(go.Bar(
-                    name=col,
-                    x=rendimientos_df['Cultivo'],
-                    y=rendimientos_df[col],
-                    marker_color=colors_rend[i]
-                ))
-            
-            fig_rend.update_layout(
-                title="Comparativa de Rendimientos (kg/ha)",
-                xaxis_title="Cultivo",
-                yaxis_title="Rendimiento (kg/ha)",
-                height=400
-            )
-            
-            st.plotly_chart(fig_rend, use_container_width=True)
+            st.bar_chart(rendimientos_df, height=400)
             
             # Tabla detallada
             st.subheader("Detalle de Rendimientos")
             
-            # Calcular diferencias
-            for i, row in rendimientos_df.iterrows():
-                dif_5 = row['Propio 5 años'] - row['Departamento 5 años']
-                pct_5 = (dif_5 / row['Departamento 5 años']) * 100
-                rendimientos_df.loc[i, 'Diferencia 5 años'] = f"{dif_5:+,.0f} ({pct_5:+.1f}%)"
+            tabla_rendimientos = []
+            for rp in productor_encontrado['rendimientos']['propios']:
+                rd = next((r for r in productor_encontrado['rendimientos']['departamento'] 
+                         if r['cultivo'] == rp['cultivo']), None)
+                if rd:
+                    dif_5 = rp['rendimiento5'] - rd['rendimiento5']
+                    pct_5 = (dif_5 / rd['rendimiento5']) * 100
+                    
+                    tabla_rendimientos.append({
+                        'Cultivo': rp['cultivo'],
+                        'Propio 5 años': f"{rp['rendimiento5']:,}",
+                        'Departamento 5 años': f"{rd['rendimiento5']:,}",
+                        'Propio 10 años': f"{rp['rendimiento10']:,}",
+                        'Departamento 10 años': f"{rd['rendimiento10']:,}",
+                        'Diferencia 5 años': f"{dif_5:+,} ({pct_5:+.1f}%)"
+                    })
             
-            st.dataframe(rendimientos_df, hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(tabla_rendimientos), hide_index=True, use_container_width=True)
         
         # Tab 3: Flujo de Caja
         with tab3:
@@ -444,42 +464,24 @@ if search_button or search_value:
             col1, col2 = st.columns(2)
             
             with col1:
-                st.subheader("Resumen Financiero")
+                st.subheader("Indicadores Principales")
                 
-                # Gráfico de cash flow
                 saldo_sin_deuda = finanzas['ingresosTotales'] - (finanzas['egresosTotales'] - finanzas['servicioDeudaActual'])
                 
-                fig_cash = go.Figure()
+                st.metric("Saldo sin deuda", f"${saldo_sin_deuda:,}")
+                st.metric("Saldo con deuda actual", f"${finanzas['saldoNeto']:,}")
+                st.metric("Ratio Servicio de Deuda", f"{finanzas['ratioServicioDeuda']:.2f}")
+                st.metric("Deuda / Activos", f"{finanzas['deudaActivos']:.2f}")
                 
-                fig_cash.add_trace(go.Bar(
-                    name='Ingresos',
-                    x=['Sin Deuda', 'Con Deuda Actual'],
-                    y=[finanzas['ingresosTotales'], finanzas['ingresosTotales']],
-                    marker_color='#8aba5f'
-                ))
+                st.subheader("Análisis de Flujo de Caja")
                 
-                fig_cash.add_trace(go.Bar(
-                    name='Egresos sin deuda',
-                    x=['Sin Deuda', 'Con Deuda Actual'],
-                    y=[finanzas['egresosTotales'] - finanzas['servicioDeudaActual'], 0],
-                    marker_color='#7aa0c3'
-                ))
-                
-                fig_cash.add_trace(go.Bar(
-                    name='Egresos con deuda',
-                    x=['Sin Deuda', 'Con Deuda Actual'],
-                    y=[0, finanzas['egresosTotales']],
-                    marker_color='#4478a7'
-                ))
-                
-                fig_cash.update_layout(
-                    title="Comparativa de Flujo de Caja",
-                    yaxis_title="USD",
-                    height=400,
-                    barmode='stack'
-                )
-                
-                st.plotly_chart(fig_cash, use_container_width=True)
+                # Gráfico simple de ingresos vs egresos
+                flujo_data = pd.DataFrame({
+                    'Concepto': ['Ingresos Totales', 'Egresos Totales', 'Saldo Neto'],
+                    'Monto': [finanzas['ingresosTotales'], finanzas['egresosTotales'], finanzas['saldoNeto']]
+                })
+                flujo_data = flujo_data.set_index('Concepto')
+                st.bar_chart(flujo_data, height=300)
             
             with col2:
                 st.subheader("Score Crediticio")
@@ -487,35 +489,11 @@ if search_button or search_value:
                 score = productor_encontrado['credito']['scoreNosis']
                 percentil = productor_encontrado['comparativaMercado']['percentilScoreCredito']
                 
-                # Gauge chart para score
-                fig_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Score Nosis"},
-                    gauge = {
-                        'axis': {'range': [None, 1000]},
-                        'bar': {'color': "#2ecc71"},
-                        'steps': [
-                            {'range': [0, 600], 'color': "#ffebee"},
-                            {'range': [600, 800], 'color': "#fff3e0"},
-                            {'range': [800, 1000], 'color': "#e8f5e8"}
-                        ],
-                        'threshold': {
-                            'line': {'color': "red", 'width': 4},
-                            'thickness': 0.75,
-                            'value': 900
-                        }
-                    }
-                ))
-                
-                fig_gauge.update_layout(height=300)
-                st.plotly_chart(fig_gauge, use_container_width=True)
+                # Mostrar score como gauge simple
+                st.markdown(crear_gauge_simple(score, 1000, "Score Nosis", f"Percentil {percentil}°"), unsafe_allow_html=True)
                 
                 st.markdown(f"""
                 <div style="text-align: center; margin-top: 10px;">
-                    <div class="metric-value">{percentil}°</div>
-                    <div class="metric-label">Percentil</div>
                     <p style="font-size: 14px;">Mejor que el {percentil}% de productores</p>
                 </div>
                 """, unsafe_allow_html=True)
@@ -524,22 +502,22 @@ if search_button or search_value:
             st.subheader("Flujo de Caja Detallado")
             
             flujo_data = [
-                ("INGRESOS", "", ""),
+                ("**INGRESOS**", "", ""),
                 ("Venta de Cultivos", f"${finanzas['ventaCultivos']:,}", f"{(finanzas['ventaCultivos']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Otros Ingresos", f"${finanzas['otrosIngresos']:,}", f"{(finanzas['otrosIngresos']/finanzas['ingresosTotales']*100):.1f}%"),
-                ("Total Ingresos", f"${finanzas['ingresosTotales']:,}", "100.0%"),
+                ("**Total Ingresos**", f"**${finanzas['ingresosTotales']:,}**", "**100.0%**"),
                 ("", "", ""),
-                ("EGRESOS", "", ""),
+                ("**EGRESOS**", "", ""),
                 ("Costos de Producción", f"${finanzas['costoProduccion']:,}", f"{(finanzas['costoProduccion']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Alquileres", f"${finanzas['alquileres']:,}", f"{(finanzas['alquileres']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Gastos de Maquinaria", f"${finanzas['gastosMaquinaria']:,}", f"{(finanzas['gastosMaquinaria']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Fletes", f"${finanzas['fletes']:,}", f"{(finanzas['fletes']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Impuestos", f"${finanzas['impuestos']:,}", f"{(finanzas['impuestos']/finanzas['ingresosTotales']*100):.1f}%"),
                 ("Otros Gastos", f"${finanzas['otrosGastos']:,}", f"{(finanzas['otrosGastos']/finanzas['ingresosTotales']*100):.1f}%"),
-                ("Servicio de Deuda Actual", f"${finanzas['servicioDeudaActual']:,}", f"{(finanzas['servicioDeudaActual']/finanzas['ingresosTotales']*100):.1f}%"),
-                ("Total Egresos", f"${finanzas['egresosTotales']:,}", f"{(finanzas['egresosTotales']/finanzas['ingresosTotales']*100):.1f}%"),
+                ("🔴 Servicio de Deuda Actual", f"${finanzas['servicioDeudaActual']:,}", f"{(finanzas['servicioDeudaActual']/finanzas['ingresosTotales']*100):.1f}%"),
+                ("**Total Egresos**", f"**${finanzas['egresosTotales']:,}**", f"**{(finanzas['egresosTotales']/finanzas['ingresosTotales']*100):.1f}%**"),
                 ("", "", ""),
-                ("SALDO NETO", f"${finanzas['saldoNeto']:,}", f"{(finanzas['saldoNeto']/finanzas['ingresosTotales']*100):.1f}%")
+                ("**🟢 SALDO NETO**", f"**${finanzas['saldoNeto']:,}**", f"**{(finanzas['saldoNeto']/finanzas['ingresosTotales']*100):.1f}%**")
             ]
             
             flujo_df = pd.DataFrame(flujo_data, columns=["Concepto", "Monto (USD)", "% del Total"])
@@ -557,63 +535,45 @@ if search_button or search_value:
             with col1:
                 st.markdown("**Historial con DCAC**")
                 criterios_dcac = [
-                    ("Transacciones (Ventas o Compras) >= 3", credito['transaccionesDCAC'] >= 3, "CUMPLE"),
-                    ("Crédito < Pagos realizados en DC", credito['creditoPagos'] < 1, "CUMPLE")
+                    ("Transacciones >= 3", credito['transaccionesDCAC'] >= 3, f"✅ {credito['transaccionesDCAC']} transacciones"),
+                    ("Crédito < Pagos", credito['creditoPagos'] < 1, f"✅ Ratio {credito['creditoPagos']:.2f}")
                 ]
                 
-                for criterio, cumple, status in criterios_dcac:
-                    color_class = "criteria-pass" if cumple else "criteria-fail"
-                    st.markdown(f"""
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
-                        <span>{criterio}</span>
-                        <span class="{color_class}">{status}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                for criterio, cumple, detalle in criterios_dcac:
+                    st.markdown(f"• **{criterio}:** {detalle}")
                 
                 st.markdown("**Ratios Financieros**")
                 criterios_ratios = [
-                    ("Deuda/Activos <= 0.15", finanzas['deudaActivos'] <= 0.15, "CUMPLE"),
-                    ("Deuda/Hacienda <= 0.25", finanzas['deudaHacienda'] <= 0.25, "CUMPLE"),
-                    ("Ratio Servicio de Deuda >= 1.5", finanzas['ratioServicioDeuda'] >= 1.5, "CUMPLE")
+                    ("Deuda/Activos <= 0.15", finanzas['deudaActivos'] <= 0.15, f"✅ {finanzas['deudaActivos']:.2f}"),
+                    ("Deuda/Hacienda <= 0.25", finanzas['deudaHacienda'] <= 0.25, f"✅ {finanzas['deudaHacienda']:.2f}"),
+                    ("Ratio Servicio >= 1.5", finanzas['ratioServicioDeuda'] >= 1.5, f"✅ {finanzas['ratioServicioDeuda']:.2f}")
                 ]
                 
-                for criterio, cumple, status in criterios_ratios:
-                    color_class = "criteria-pass" if cumple else "criteria-fail"
-                    st.markdown(f"""
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
-                        <span>{criterio}</span>
-                        <span class="{color_class}">{status}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                for criterio, cumple, detalle in criterios_ratios:
+                    st.markdown(f"• **{criterio}:** {detalle}")
             
             with col2:
                 st.markdown("**Calificación Crediticia**")
                 criterios_credito = [
-                    ("Score Nosis >= 600", credito['scoreNosis'] >= 600, "CUMPLE"),
-                    ("Cheques Rechazados = 0", credito['chequesRechazados'] == 0, "CUMPLE"),
-                    ("Créditos con Bancos <= 3", credito['creditosBancos'] <= 3, "CUMPLE"),
-                    ("Consultas Nosis <= 1.5", credito['consultasNosis'] <= 1.5, "CUMPLE")
+                    ("Score Nosis >= 600", credito['scoreNosis'] >= 600, f"✅ {credito['scoreNosis']} puntos"),
+                    ("Cheques Rechazados = 0", credito['chequesRechazados'] == 0, f"✅ {credito['chequesRechazados']} rechazos"),
+                    ("Créditos Bancos <= 3", credito['creditosBancos'] <= 3, f"✅ {credito['creditosBancos']} créditos"),
+                    ("Consultas Nosis <= 1.5", credito['consultasNosis'] <= 1.5, f"✅ {credito['consultasNosis']:.1f} ratio")
                 ]
                 
-                for criterio, cumple, status in criterios_credito:
-                    color_class = "criteria-pass" if cumple else "criteria-fail"
-                    st.markdown(f"""
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0;">
-                        <span>{criterio}</span>
-                        <span class="{color_class}">{status}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                for criterio, cumple, detalle in criterios_credito:
+                    st.markdown(f"• **{criterio}:** {detalle}")
                 
-                st.markdown("**Garantías**")
+                st.markdown("**Garantías Disponibles**")
                 garantias = [
                     ("Prenda sobre hacienda", credito['garantias']['prendaHacienda'], "520,000 USD"),
                     ("Garantía personal", credito['garantias']['garantiaPersonal'], "-"),
                     ("Potencial de Hipoteca", credito['garantias']['hipoteca'], "1,800,000 USD")
                 ]
                 
-                garantias_df = pd.DataFrame(garantias, columns=["Tipo", "Disponible", "Valor Estimado"])
-                garantias_df["Disponible"] = garantias_df["Disponible"].map({True: "Sí", False: "No"})
-                st.dataframe(garantias_df, hide_index=True, use_container_width=True)
+                for tipo, disponible, valor in garantias:
+                    status = "✅ Disponible" if disponible else "❌ No disponible"
+                    st.markdown(f"• **{tipo}:** {status} ({valor})")
             
             # Resumen de recomendación
             st.subheader("Resumen Comparativo")
@@ -677,7 +637,12 @@ if search_button or search_value:
                 
                 frecuencia = st.selectbox("Frecuencia de Pago:", ["Mensual", "Trimestral", "Semestral", "Anual"])
                 
-                if st.button("Simular Crédito", type="primary"):
+                calcular = st.button("Simular Crédito", type="primary")
+            
+            with col2:
+                st.markdown("**Resultados de la Simulación**")
+                
+                if calcular:
                     # Cálculos de simulación
                     pagos_por_anio = {"Mensual": 12, "Trimestral": 4, "Semestral": 2, "Anual": 1}[frecuencia]
                     tasa_periodo = tasa / 100 / pagos_por_anio
@@ -699,56 +664,17 @@ if search_button or search_value:
                     monto_total = monto + interes_total
                     cuota_anual = cuota * pagos_por_anio
                     
-                    st.session_state.simulacion = {
-                        'monto': monto,
-                        'tasa': tasa,
-                        'plazo': plazo,
-                        'cuota': cuota,
-                        'interes_total': interes_total,
-                        'monto_total': monto_total,
-                        'cuota_anual': cuota_anual,
-                        'numero_pagos': numero_pagos
-                    }
-            
-            with col2:
-                st.markdown("**Resultados de la Simulación**")
-                
-                if 'simulacion' in st.session_state:
-                    sim = st.session_state.simulacion
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Monto</div>
-                        <div class="metric-value">${sim['monto']:,.0f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Cuota {frecuencia}</div>
-                        <div class="metric-value">${sim['cuota']:,.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Interés Total</div>
-                        <div class="metric-value">${sim['interes_total']:,.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div class="metric-label">Monto Total a Pagar</div>
-                        <div class="metric-value">${sim['monto_total']:,.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Mostrar resultados
+                    st.metric("Monto", f"${monto:,.0f}")
+                    st.metric(f"Cuota {frecuencia}", f"${cuota:,.2f}")
+                    st.metric("Interés Total", f"${interes_total:,.2f}")
+                    st.metric("Monto Total a Pagar", f"${monto_total:,.2f}")
                     
                     # Análisis de impacto
                     st.markdown("**Impacto en Métricas Crediticias**")
                     
-                    nueva_deuda = sim['monto']
-                    nuevo_costo_anual = sim['cuota_anual']
+                    nueva_deuda = monto
+                    nuevo_costo_anual = cuota_anual
                     
                     nuevo_deuda_activos = (finanzas['deudaActivos'] * finanzas['activosTotales'] + nueva_deuda) / finanzas['activosTotales']
                     nuevo_ratio_servicio = finanzas['saldoNeto'] / (finanzas['servicioDeudaActual'] + nuevo_costo_anual)
@@ -756,13 +682,9 @@ if search_button or search_value:
                     porcentaje_flujo = (nuevo_costo_anual / finanzas['saldoNeto']) * 100
                     saldo_final = finanzas['saldoNeto'] - nuevo_costo_anual
                     
-                    color_ratio = "positive" if nuevo_ratio_servicio >= 1.5 else "warning" if nuevo_ratio_servicio >= 1.2 else "negative"
-                    
-                    st.markdown(f"""
-                    **Nuevo Ratio Servicio de Deuda:** <span class="{color_ratio}">{nuevo_ratio_servicio:.2f}</span><br>
-                    **Cuota Anual:** ${nuevo_costo_anual:,.2f} ({porcentaje_flujo:.1f}% del flujo)<br>
-                    **Saldo después de pagos:** ${saldo_final:,.2f}
-                    """, unsafe_allow_html=True)
+                    st.metric("Nuevo Ratio Servicio", f"{nuevo_ratio_servicio:.2f}")
+                    st.metric("% del Flujo de Caja", f"{porcentaje_flujo:.1f}%")
+                    st.metric("Saldo Final", f"${saldo_final:,.2f}")
                     
                     if nuevo_ratio_servicio >= 1.5:
                         st.success("✅ El productor PUEDE afrontar el nuevo crédito")
@@ -770,6 +692,8 @@ if search_button or search_value:
                         st.warning("⚠️ El productor puede afrontar con PRECAUCIÓN el nuevo crédito")
                     else:
                         st.error("❌ El productor NO PUEDE afrontar el nuevo crédito")
+                else:
+                    st.info("Complete los parámetros y haga clic en 'Simular Crédito' para ver los resultados")
         
         # Tab 6: Comparativa de Mercado
         with tab6:
@@ -782,133 +706,36 @@ if search_button or search_value:
             with col1:
                 st.markdown("**Apalancamiento**")
                 percentil_apal = comparativa['percentilApalancamiento']
-                
-                fig_apal = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = percentil_apal,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': f"{percentil_apal}° Percentil"},
-                    gauge = {
-                        'axis': {'range': [None, 100]},
-                        'bar': {'color': "#f39c12" if percentil_apal < 75 else "#2ecc71"},
-                        'steps': [
-                            {'range': [0, 25], 'color': "#ffebee"},
-                            {'range': [25, 75], 'color': "#fff3e0"},
-                            {'range': [75, 100], 'color': "#e8f5e8"}
-                        ]
-                    }
-                ))
-                fig_apal.update_layout(height=250)
-                st.plotly_chart(fig_apal, use_container_width=True)
-                
-                st.markdown(f"<p style='text-align: center; font-size: 14px;'>{100-percentil_apal}% de productores tienen mayor apalancamiento</p>", unsafe_allow_html=True)
+                st.markdown(crear_gauge_simple(percentil_apal, 100, f"{percentil_apal}° Percentil", 
+                           f"{100-percentil_apal}% tienen mayor apalancamiento"), unsafe_allow_html=True)
             
             with col2:
                 st.markdown("**Productividad**")
                 percentil_prod = comparativa['percentilProductividad']
-                
-                fig_prod = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = percentil_prod,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': f"{percentil_prod}° Percentil"},
-                    gauge = {
-                        'axis': {'range': [None, 100]},
-                        'bar': {'color': "#2ecc71"},
-                        'steps': [
-                            {'range': [0, 25], 'color': "#ffebee"},
-                            {'range': [25, 75], 'color': "#fff3e0"},
-                            {'range': [75, 100], 'color': "#e8f5e8"}
-                        ]
-                    }
-                ))
-                fig_prod.update_layout(height=250)
-                st.plotly_chart(fig_prod, use_container_width=True)
-                
-                st.markdown(f"<p style='text-align: center; font-size: 14px;'>Mejor que el {percentil_prod}% de productores</p>", unsafe_allow_html=True)
+                st.markdown(crear_gauge_simple(percentil_prod, 100, f"{percentil_prod}° Percentil", 
+                           f"Mejor que el {percentil_prod}% de productores"), unsafe_allow_html=True)
             
             with col3:
                 st.markdown("**Score Crediticio**")
                 percentil_score = comparativa['percentilScoreCredito']
-                
-                fig_score = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = percentil_score,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': f"{percentil_score}° Percentil"},
-                    gauge = {
-                        'axis': {'range': [None, 100]},
-                        'bar': {'color': "#2ecc71"},
-                        'steps': [
-                            {'range': [0, 25], 'color': "#ffebee"},
-                            {'range': [25, 75], 'color': "#fff3e0"},
-                            {'range': [75, 100], 'color': "#e8f5e8"}
-                        ]
-                    }
-                ))
-                fig_score.update_layout(height=250)
-                st.plotly_chart(fig_score, use_container_width=True)
-                
-                st.markdown(f"<p style='text-align: center; font-size: 14px;'>Mejor que el {percentil_score}% de productores</p>", unsafe_allow_html=True)
+                st.markdown(crear_gauge_simple(percentil_score, 100, f"{percentil_score}° Percentil", 
+                           f"Mejor que el {percentil_score}% de productores"), unsafe_allow_html=True)
             
-            # Distribución del mercado
-            st.subheader("Distribución del Mercado")
+            # Resumen comparativo
+            st.subheader("Resumen del Análisis")
             
-            col1, col2 = st.columns(2)
+            resumen_data = {
+                'Métrica': ['Apalancamiento', 'Productividad', 'Score Crediticio'],
+                'Percentil': [f"{comparativa['percentilApalancamiento']}°", 
+                             f"{comparativa['percentilProductividad']}°", 
+                             f"{comparativa['percentilScoreCredito']}°"],
+                'Clasificación': ['Conservador', 'Alto', 'Excelente'],
+                'Status': ['✅ Bajo riesgo', '✅ Alta productividad', '✅ Excelente historial']
+            }
             
-            with col1:
-                st.markdown("**Distribución por Apalancamiento**")
-                
-                # Generar datos simulados de distribución
-                np.random.seed(42)
-                apalancamiento_data = np.random.normal(50, 20, 1000)
-                apalancamiento_data = np.clip(apalancamiento_data, 0, 100)
-                
-                bins = range(0, 101, 10)
-                hist, _ = np.histogram(apalancamiento_data, bins=bins)
-                
-                colors_hist = ['#4478a7' if i*10 <= percentil_apal < (i+1)*10 else '#7aa0c3' for i in range(len(hist))]
-                
-                fig_dist_apal = go.Figure(data=[go.Bar(
-                    x=[f"{i*10}-{(i+1)*10}" for i in range(len(hist))],
-                    y=hist,
-                    marker_color=colors_hist
-                )])
-                
-                fig_dist_apal.update_layout(
-                    title="Distribución de Apalancamiento",
-                    xaxis_title="Percentil",
-                    yaxis_title="Cantidad de Productores",
-                    height=300
-                )
-                
-                st.plotly_chart(fig_dist_apal, use_container_width=True)
+            st.dataframe(pd.DataFrame(resumen_data), hide_index=True, use_container_width=True)
             
-            with col2:
-                st.markdown("**Distribución por Score Crediticio**")
-                
-                # Generar datos simulados de distribución
-                score_data = np.random.normal(60, 25, 1000)
-                score_data = np.clip(score_data, 0, 100)
-                
-                hist_score, _ = np.histogram(score_data, bins=bins)
-                
-                colors_hist_score = ['#4478a7' if i*10 <= percentil_score < (i+1)*10 else '#7aa0c3' for i in range(len(hist_score))]
-                
-                fig_dist_score = go.Figure(data=[go.Bar(
-                    x=[f"{i*10}-{(i+1)*10}" for i in range(len(hist_score))],
-                    y=hist_score,
-                    marker_color=colors_hist_score
-                )])
-                
-                fig_dist_score.update_layout(
-                    title="Distribución de Score Crediticio",
-                    xaxis_title="Percentil",
-                    yaxis_title="Cantidad de Productores",
-                    height=300
-                )
-                
-                st.plotly_chart(fig_dist_score, use_container_width=True)
+            st.success("🎯 **Recomendación Final:** Cliente PREMIUM - Aprobar crédito con condiciones preferenciales")
 
 else:
     # Mostrar mensaje inicial
