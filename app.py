@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import os
 from datetime import datetime
-import hashlib
 
 # Configuración de la página
 st.set_page_config(
@@ -70,8 +69,6 @@ if 'username' not in st.session_state:
     st.session_state.username = None
 if 'data' not in st.session_state:
     st.session_state.data = {}
-if 'page' not in st.session_state:
-    st.session_state.page = 'login'
 
 # Archivo de datos
 DATA_FILE = "ganadero_data.json"
